@@ -17,16 +17,23 @@ $inputText = trim($_POST['emotion_text']);
 
 /*
 |--------------------------------------------------
-| Call FastAPI to detect emotion
+| Call Gradio Emotion API
 |--------------------------------------------------
+| Replace the URL with your deployed Gradio app
 */
+$gradio_url = "https://paac-emotion-api-dimrror.hf.space/run/predict_flower";
+
+$payload = [
+    "data" => [$inputText, 0.3, 3] // text, threshold, top_k
+];
+
 $curl = curl_init();
 curl_setopt_array($curl, [
-    CURLOPT_URL => "http://127.0.0.1:8000/predict_emotion",
+    CURLOPT_URL => $gradio_url,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
     CURLOPT_HTTPHEADER => ["Content-Type: application/json"],
-    CURLOPT_POSTFIELDS => json_encode(["text" => $inputText])
+    CURLOPT_POSTFIELDS => json_encode($payload)
 ]);
 
 $response = curl_exec($curl);
@@ -34,18 +41,19 @@ $curl_error = curl_error($curl);
 curl_close($curl);
 
 if ($response === false) {
-    $_SESSION['error'] = "Failed to connect to the emotion detection service. Please try again later. Error: $curl_error";
+    $_SESSION['error'] = "Failed to connect to the emotion detection service. Error: $curl_error";
     redirect("emotion_input.php");
 }
 
+// Gradio returns JSON like: { "data": ["Dominant Emotion", 0.95] }
 $data = json_decode($response, true);
 
-if (!isset($data['dominant_emotion']) || empty($data['dominant_emotion'])) {
-    $_SESSION['error'] = "Could not detect your emotion. Please try to describe your feelings more clearly.";
+if (!isset($data['data'][0])) {
+    $_SESSION['error'] = "Could not detect your emotion. Please try again.";
     redirect("emotion_input.php");
 }
 
-$detectedEmotion = $data['dominant_emotion'];
+$detectedEmotion = $data['data'][0]; // Dominant Flower Emotion
 
 /*
 |--------------------------------------------------
@@ -82,7 +90,7 @@ $stmt->execute();
 $bouquets = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 if (empty($bouquets)) {
-    $_SESSION['error'] = "Sorry, we currently have no bouquets mapped to the emotion '$detectedEmotion'. Please try another description.";
+    $_SESSION['error'] = "Sorry, we currently have no bouquets mapped to '$detectedEmotion'.";
     redirect("emotion_input.php");
 }
 
